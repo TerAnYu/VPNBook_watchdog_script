@@ -1,0 +1,47 @@
+# VPNBookScript v2.5
+local scriptName "VPNBook_watchdog_script";
+
+:global VPNBookpIfName "VPNBook"
+:global VPNBookServerAddresses {"PL226.vpnbook.com";"de4.vpnbook.com";"us1.vpnbook.com";"us2.vpnbook.com";"fr1.vpnbook.com";"fr8.vpnbook.com";"ca222.vpnbook.com";"ca198.vpnbook.com"}
+#:if ([:typeof $VPNBookServerAddresses] != "array") do={
+#  :set VPNBookServerAddresses {"euro217.vpnbook.com";"euro214.vpnbook.com";"us1.vpnbook.com";"us2.vpnbook.com";"ca1.vpnbook.com";"de233.vpnbook.com"}
+#}
+
+:global VPNBookErr false
+:global VPNBookPass
+:global VPNBookRun
+:global VPNBookURL https://myservername/vpnbook
+#:global TToken "4.....................2"
+#:global TChatId "2342432...9"
+
+if ( [len [/system script job find where script=$scriptName]] > 1) do= { error "single instance" };
+delay 15;
+
+while (true) do {
+:delay 60s;
+
+:global VPNBookServerIndex
+:if ([:typeof $VPNBookServerIndex] != "num") do={:set VPNBookServerIndex 0}
+
+:if ([/interface pptp-client get $VPNBookpIfName running]) do={
+  :set VPNBookRun true
+} else {
+  :if (!$VPNBookRun) do={
+    :set VPNBookServerIndex ($VPNBookServerIndex + 1)
+    :if ($VPNBookServerIndex>=[:len $VPNBookServerAddresses]) do={:set VPNBookServerIndex 0}
+  } else {
+    :set VPNBookRun false
+  }
+  :if (![/interface pptp-client get $VPNBookpIfName disabled]) do={/interface pptp-client set $VPNBookpIfName disabled=yes}
+  :delay 2
+  :do {:set VPNBookPass ([/tool fetch url="$VPNBookURL" output=user as-value]->"data")} on-error={:set VPNBookErr true}
+  :if (!$VPNBookErr) do={
+    :if ([/interface pptp-client get $VPNBookpIfName password] != $VPNBookPass) do={/interface pptp-client set $VPNBookpIfName password=$VPNBookPass}
+    :if ([/interface pptp-client get $VPNBookpIfName connect-to] != $VPNBookServerAddresses->$VPNBookServerIndex) do={/interface pptp-client set $VPNBookpIfName connect-to=($VPNBookServerAddresses->$VPNBookServerIndex)}
+    :log info ("VPNBook: Attempt to connect to: ".($VPNBookServerAddresses->$VPNBookServerIndex).". Password: $VPNBookPass")
+#    /tool fetch url=("https://api.telegram.org/bot$TToken/sendmessage\?chat_id=$TChatId&text=VPNBook: Attempt to connect to: ".($VPNBookServerAddresses->$VPNBookServerIndex).". Password: $VPNBookPass") keep-result=no
+    /interface pptp-client set $VPNBookpIfName disabled=no
+  }
+}
+
+}
